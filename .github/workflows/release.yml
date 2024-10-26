@@ -1,0 +1,82 @@
+name: Release
+
+on: workflow_dispatch
+
+jobs:
+  release-system:
+    name: Release System
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: 27
+          elixir-version: 1.17.2
+
+      - name: Restore Nerves Downloads For Release
+        uses: actions/cache/restore@v4
+        with:
+            path: ~/.nerves/dl
+            key: nerves-release-${{github.sha}}
+
+      - name: Restore Nerves System
+        uses: actions/cache/restore@v4
+        with:
+          path: deploy/system
+          key: deploy/system-${{github.sha}}
+      
+      - name: Get Version
+        id: get-version
+        run: echo "version=$(cat deploy/system/VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Create release notes
+        run: grep -Pazo "(?s)(?<=## v${{ steps.get-version.outputs.version }})[^#]+" deploy/system/CHANGELOG.md | sed '/./,$!d' > deploy/system/RELEASE_NOTES
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get-version.outputs.version}}
+          body_path: deploy/system/RELEASE_NOTES
+          files: deploy/system/artifacts/**
+
+      - name: Install Nerves Bootstrap
+        run: mix archive.install hex nerves_bootstrap --force
+            
+      - name: Fetch Dependencies
+        run: mix deps.get
+      
+      - name: Publish Package
+        run: mix hex.publish --yes
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+
+  prepare-next-release:
+    name: Prepare Next Release
+    needs: [ release-system ]
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Get Next Version
+        id: get-next-version
+        run: echo "version=$(cat VERSION | awk -F. '{OFS="."; $NF+=1; print $0}')" >> "$GITHUB_OUTPUT"
+
+      - name: Set Next Version
+        run: echo ${{ steps.get-next-version.outputs.version}} > VERSION
+
+      - name: Prepare Changelog
+        run: sed -i '14s/^/## v${{ steps.get-next-version.outputs.version}}\r\n\r\n/' CHANGELOG.md
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Bump version for next release

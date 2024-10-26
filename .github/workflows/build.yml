@@ -1,0 +1,101 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  get-br-dependencies:
+    runs-on: ubuntu-20.04
+    name: Get BR Dependencies
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: 27
+          elixir-version: 1.17.2
+      - name: Cache Nerves Downloads
+        uses: actions/cache@v4
+        with:
+            path: ~/.nerves/dl
+            key: nerves-dl-${{github.sha}}
+      - run: mix deps.get
+      - run: mix hex.build
+      - name: Nerves br create build
+        run: ./deps/nerves_system_br/create-build.sh nerves_defconfig temp_nerves_system
+      - name: Make br dependencies
+        run: make source
+        working-directory: temp_nerves_system
+
+  build-system:
+    runs-on: ubuntu-20.04
+    name: Build System
+    needs: [ get-br-dependencies ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: 27
+          elixir-version: 1.17.2
+
+      - name: Restore Nerves Downloads
+        uses: actions/cache/restore@v4
+        with:
+            path: ~/.nerves/dl
+            key: nerves-dl-${{github.sha}}
+
+      - name: Install Nerves Bootstrap
+        run: mix archive.install hex nerves_bootstrap --force
+
+      - run: mix deps.get
+      
+      - name: Validate Hex Package
+        run: mix hex.build
+        
+      - name: Build
+        run: mix compile
+
+      - name: Check Build
+        run: "[ -d .nerves ] || (echo 'VERSION file needs to be bumped or a config file needs to change to force a build'; exit 1)"
+
+      - name: Lint
+        run: mix nerves.system.lint nerves_defconfig
+
+      - name: Create artifact directory
+        run: mkdir -p deploy/system/artifacts
+
+      - name: Copy CHANGELOG
+        run: cp ./CHANGELOG.md deploy/system/CHANGELOG.md
+
+      - name: Copy VERSION
+        run: cp ./VERSION deploy/system/VERSION
+
+      - name: Split Repo name
+        env:
+          REPO: ${{github.repository}}
+        id: split-repo
+        run: echo "fragment=${REPO##*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Create artifacts
+        run: mix nerves.artifact ${{ steps.split-repo.outputs.fragment }} --path deploy/system/artifacts
+
+      - name: Store Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nerves-system
+          path: deploy/system/artifacts
+
+      - name: Cache Nerves System
+        uses: actions/cache/save@v4
+        with:
+          path: deploy/system
+          key: deploy/system-${{github.sha}}
+
+      - name: Save Nerves Downloads For Release
+        uses: actions/cache/save@v4
+        with:
+            path: ~/.nerves/dl
+            key: nerves-release-${{github.sha}}
