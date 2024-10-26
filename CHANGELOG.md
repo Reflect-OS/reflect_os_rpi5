@@ -11,6 +11,8 @@ This project follows the same versioning guidelines as [nerves_system_rpi5](http
    releases, and Linux kernel updates. They're also made to fix bugs and add
    features to the build infrastructure.
 
+## v0.1.1
+
 ## v0.1.0
 
 Test Release
