@@ -1,0 +1,5 @@
+menu "Custom Packages"
+    # This is admittedly hacky, but should be fixed in the next
+    # BuildRoot release: https://gitlab.com/buildroot.org/buildroot/-/commit/c7109e265cb6c179dd51a02637bb5f97f4767d21 
+    source "$NERVES_DEFCONFIG_DIR/packages/fbv_custom/Config.in"
+endmenu

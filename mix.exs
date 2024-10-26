@@ -1,8 +1,8 @@
 defmodule NervesSystemRpi5.MixProject do
   use Mix.Project
 
-  @github_organization "nerves-project"
-  @app :nerves_system_rpi5
+  @github_organization "Reflect-OS"
+  @app :reflect_os_rpi5
   @source_url "https://github.com/#{@github_organization}/#{@app}"
   @version Path.join(__DIR__, "VERSION")
            |> File.read!()
@@ -76,7 +76,7 @@ defmodule NervesSystemRpi5.MixProject do
   end
 
   defp description do
-    "Nerves System - Raspberry Pi 5 (64-bits)"
+    "ReflectOS - Raspberry Pi 5 (64-bits)"
   end
 
   defp docs do
